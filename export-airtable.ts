@@ -433,26 +433,18 @@ async function main(): Promise<void> {
 
   // 3. Discover tables
   let tablesMeta = await fetchTablesMeta(apiKey, baseId);
-  const usedFallback = tablesMeta.length === 0;
+  const noTablesFound = tablesMeta.length === 0;
 
   // 4. Set up Airtable client
   const airtable = new Airtable({ apiKey, endpointUrl: 'https://api.airtable.com' });
   const base = airtable.base(baseId);
 
   // 5. If metadata API failed, fetch records first then infer schema
-  if (usedFallback) {
-    log(`Using fallback: fetching from known tables [${KNOWN_TABLES.join(', ')}]`);
-    tablesMeta = [];
-    for (const tableName of KNOWN_TABLES) {
-      try {
-        const records = await fetchAllRecords(base, tableName);
-        const meta = inferTableMeta(tableName, records);
-        tablesMeta.push(meta);
-        log(`  ${tableName}: inferred ${meta.fields.length} fields from ${records.length} records`);
-      } catch (err) {
-        log(`  WARNING: Could not fetch table "${tableName}": ${err}`);
-      }
-    }
+  if (noTablesFound) {
+    log(
+      `No tables found`,
+    );
+    return
   }
 
   log(`Found ${tablesMeta.length} table(s): ${tablesMeta.map((t) => t.name).join(', ')}`);
@@ -482,12 +474,7 @@ async function main(): Promise<void> {
 
     // Fetch records (skip if already fetched during fallback inference)
     let records: Array<{ id: string; createdTime: string; fields: Record<string, unknown> }>;
-    if (usedFallback) {
-      // Re-fetch to get createdTime (inference pass might have missed it)
-      records = await fetchAllRecords(base, meta.name);
-    } else {
-      records = await fetchAllRecords(base, meta.name);
-    }
+    records = await fetchAllRecords(base, meta.name);
 
     log(`  Fetched ${records.length} records`);
     totalRecords += records.length;
